@@ -1,0 +1,7 @@
+&_snd_module_pcm_copy,
+&_snd_module_pcm_linear,
+&_snd_module_pcm_rate,
+&_snd_module_pcm_plug,
+&_snd_module_pcm_dmix,
+&_snd_module_pcm_dsnoop,
+&_snd_module_pcm_asym,

@@ -1,0 +1,7 @@
+alsa-lib (1.0.21a-11slp3) unstable; urgency=low
+
+  * Initial release
+  * Git: pkgs/a/alsa-lib
+  * Tag: alsa-lib_1.0.21a-11slp3
+
+ -- Seungbae Shin <seungbae.shin@samsung.com>  Wed, 07 Dec 2011 11:57:45 +0900
