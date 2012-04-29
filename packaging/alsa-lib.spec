@@ -1,11 +1,12 @@
+#sbs-git:slp/pkgs/a/alsa-lib alsa-lib 1.0.21a cb38cd61f9258cb9c7ea768f9782b372de5976df
 Name:       alsa-lib
 Summary:    The Advanced Linux Sound Architecture (ALSA) library
-Version:    1.0.21a
-Release:    3.1
+Version: 1.0.21a
+Release:    1
 Group:      System/Libraries
 License:    LGPLv2+
 URL:        http://www.alsa-project.org/
-Source0:    ftp://ftp.alsa-project.org/pub/lib/alsa-lib-%{version}.tar.gz
+Source0:    ftp://ftp.alsa-project.org/pub/lib/%{name}-%{version}.tar.gz
 
 
 %description
@@ -38,25 +39,36 @@ ALSA Library package for multimedia framework middleware package
 
 
 %prep
-%setup -q -n %{name}-%{version}
+%setup -q
+
 
 %build
 export CFLAGS+=" -fPIC" 
 export LDFLAGS+=" -Wl,--warn-unresolved-symbols -Wl,--hash-style=both -Wl,--as-needed"
 chmod +x autogen.sh
 
-%autogen
-%ifarch %arm
-%configure \
+%autogen --disable-static
+%configure --disable-static \
+%ifarch %{arm}
     --with-alsa-devdir=/dev/snd \
+%endif
+%ifarch %{arm}
     --disable-alisp \
+%endif
+%ifarch %{arm}
     --disable-seq \
+%endif
+%ifarch %{arm}
     --disable-rawmidi \
+%endif
+%ifarch %{arm}
     --disable-python \
+%endif
+%ifarch %{arm}
     --with-gnu-ld \
-    --with-pcm-plugins=rate,linear,plug,dmix,dsnoop,asym,mmap,ioplug,hooks
-%else
-%configure
+%endif
+%ifarch %{arm}
+    --with-pcm-plugins=rate,linear,plug,dmix,dsnoop,asym,mmap,ioplug
 %endif
 
 make %{?jobs:-j%jobs}
@@ -72,14 +84,18 @@ rm -f %{buildroot}/%{_bindir}/aserver
 %postun -n libasound -p /sbin/ldconfig
 
 %files
+%defattr(-,root,root,-)
 
 %files -n libasound
+%defattr(-,root,root,-)
 %{_libdir}/lib*.so.*
 %{_libdir}/alsa-lib/smixer/*.so
 %{_datadir}/alsa/*
 
 %files -n libasound-devel
+%defattr(-,root,root,-)
 %{_includedir}/*
 %{_libdir}/lib*.so
 %{_libdir}/pkgconfig/*
 %{_datadir}/aclocal
+
