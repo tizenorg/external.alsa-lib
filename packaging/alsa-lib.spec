@@ -7,6 +7,7 @@ Group:      System/Libraries
 License:    LGPLv2+
 URL:        http://www.alsa-project.org/
 Source0:    ftp://ftp.alsa-project.org/pub/lib/%{name}-%{version}.tar.gz
+Source1001: packaging/alsa-lib.manifest 
 
 
 %description
@@ -43,6 +44,7 @@ ALSA Library package for multimedia framework middleware package
 
 
 %build
+cp %{SOURCE1001} .
 export CFLAGS+=" -fPIC" 
 export LDFLAGS+=" -Wl,--warn-unresolved-symbols -Wl,--hash-style=both -Wl,--as-needed"
 chmod +x autogen.sh
@@ -84,15 +86,18 @@ rm -f %{buildroot}/%{_bindir}/aserver
 %postun -n libasound -p /sbin/ldconfig
 
 %files
+%manifest alsa-lib.manifest
 %defattr(-,root,root,-)
 
 %files -n libasound
+%manifest alsa-lib.manifest
 %defattr(-,root,root,-)
 %{_libdir}/lib*.so.*
 %{_libdir}/alsa-lib/smixer/*.so
 %{_datadir}/alsa/*
 
 %files -n libasound-devel
+%manifest alsa-lib.manifest
 %defattr(-,root,root,-)
 %{_includedir}/*
 %{_libdir}/lib*.so
