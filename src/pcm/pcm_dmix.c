@@ -174,6 +174,10 @@ static void mix_areas(snd_pcm_direct_t *dmix,
 		sample_size = 4;
 		do_mix_areas = (mix_areas_t *)dmix->u.dmix.mix_areas_32;
 		break;
+	case SND_PCM_FORMAT_S24_LE:
+		sample_size = 4;
+		do_mix_areas = (mix_areas_t *)dmix->u.dmix.mix_areas_24;
+		break;
 	case SND_PCM_FORMAT_S24_3LE:
 		sample_size = 3;
 		do_mix_areas = (mix_areas_t *)dmix->u.dmix.mix_areas_24;
@@ -237,6 +241,10 @@ static void remix_areas(snd_pcm_direct_t *dmix,
 	case SND_PCM_FORMAT_S32_BE:
 		sample_size = 4;
 		do_remix_areas = (mix_areas_t *)dmix->u.dmix.remix_areas_32;
+		break;
+	case SND_PCM_FORMAT_S24_LE:
+		sample_size = 4;
+		do_remix_areas = (mix_areas_t *)dmix->u.dmix.remix_areas_24;
 		break;
 	case SND_PCM_FORMAT_S24_3LE:
 		sample_size = 3;
@@ -597,8 +605,8 @@ static int snd_pcm_dmix_drop(snd_pcm_t *pcm)
 	snd_pcm_direct_t *dmix = pcm->private_data;
 	if (dmix->state == SND_PCM_STATE_OPEN)
 		return -EBADFD;
-	snd_pcm_direct_timer_stop(dmix);
 	dmix->state = SND_PCM_STATE_SETUP;
+	snd_pcm_direct_timer_stop(dmix);
 	return 0;
 }
 
@@ -844,7 +852,7 @@ static int snd_pcm_dmix_htimestamp(snd_pcm_t *pcm,
 		if (ok && *avail == avail1)
 			break;
 		*avail = avail1;
-		*tstamp = snd_pcm_hw_fast_tstamp(pcm);
+		*tstamp = snd_pcm_hw_fast_tstamp(dmix->spcm);
 	}
 	return 0;
 }

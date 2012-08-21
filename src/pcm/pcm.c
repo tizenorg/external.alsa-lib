@@ -168,17 +168,17 @@ The PCM device is prepared for operation. Application can use
 the operation.
 
 \par SND_PCM_STATE_RUNNING
-The PCM device is running. It processes the samples. The stream can
+The PCM device has been started and is running. It processes the samples. The stream can
 be stopped using the #snd_pcm_drop() or
-#snd_pcm_drain calls.
+#snd_pcm_drain() calls.
 
 \par SND_PCM_STATE_XRUN
 The PCM device reached overrun (capture) or underrun (playback).
 You can use the -EPIPE return code from I/O functions
 (#snd_pcm_writei(), #snd_pcm_writen(), #snd_pcm_readi(), #snd_pcm_readn())
 to determine this state without checking
-the actual state via #snd_pcm_state() call. You can recover from
-this state with #snd_pcm_prepare(),
+the actual state via #snd_pcm_state() call. It is recommended to use
+the helper function #snd_pcm_recover() to recover from this state, but you can also use #snd_pcm_prepare(),
 #snd_pcm_drop() or #snd_pcm_drain() calls.
 
 \par SND_PCM_STATE_DRAINING
@@ -726,8 +726,11 @@ int snd_pcm_nonblock(snd_pcm_t *pcm, int nonblock)
 		return err;
 	if (nonblock)
 		pcm->mode |= SND_PCM_NONBLOCK;
-	else
+	else {
+		if (pcm->hw_flags & SND_PCM_HW_PARAMS_NO_PERIOD_WAKEUP)
+			return -EINVAL;
 		pcm->mode &= ~SND_PCM_NONBLOCK;
+	}
 	return 0;
 }
 
@@ -1226,9 +1229,9 @@ use_default_symbol_version(__snd_pcm_forward, snd_pcm_forward, ALSA_0.9.0rc8);
  * \retval -EPIPE an underrun occurred
  * \retval -ESTRPIPE a suspend event occurred (stream is suspended and waiting for an application recovery)
  *
- * If the blocking behaviour is selected, then routine waits until
- * all requested bytes are played or put to the playback ring buffer.
- * The count of bytes can be less only if a signal or underrun occurred.
+ * If the blocking behaviour is selected and it is running, then routine waits until
+ * all requested frames are played or put to the playback ring buffer.
+ * The returned number of frames can be less only if a signal or underrun occurred.
  *
  * If the non-blocking behaviour is selected, then routine doesn't wait at all.
  */ 
@@ -1258,9 +1261,9 @@ snd_pcm_sframes_t snd_pcm_writei(snd_pcm_t *pcm, const void *buffer, snd_pcm_ufr
  * \retval -EPIPE an underrun occurred
  * \retval -ESTRPIPE a suspend event occurred (stream is suspended and waiting for an application recovery)
  *
- * If the blocking behaviour is selected, then routine waits until
- * all requested bytes are played or put to the playback ring buffer.
- * The count of bytes can be less only if a signal or underrun occurred.
+ * If the blocking behaviour is selected and it is running, then routine waits until
+ * all requested frames are played or put to the playback ring buffer.
+ * The returned number of frames can be less only if a signal or underrun occurred.
  *
  * If the non-blocking behaviour is selected, then routine doesn't wait at all.
  */ 
@@ -1290,8 +1293,8 @@ snd_pcm_sframes_t snd_pcm_writen(snd_pcm_t *pcm, void **bufs, snd_pcm_uframes_t 
  * \retval -EPIPE an overrun occurred
  * \retval -ESTRPIPE a suspend event occurred (stream is suspended and waiting for an application recovery)
  *
- * If the blocking behaviour was selected, then routine waits until
- * all requested bytes are filled. The count of bytes can be less only
+ * If the blocking behaviour was selected and it is running, then routine waits until
+ * all requested frames are filled. The returned number of frames can be less only
  * if a signal or underrun occurred.
  *
  * If the non-blocking behaviour is selected, then routine doesn't wait at all.
@@ -1322,8 +1325,8 @@ snd_pcm_sframes_t snd_pcm_readi(snd_pcm_t *pcm, void *buffer, snd_pcm_uframes_t 
  * \retval -EPIPE an overrun occurred
  * \retval -ESTRPIPE a suspend event occurred (stream is suspended and waiting for an application recovery)
  *
- * If the blocking behaviour was selected, then routine waits until
- * all requested bytes are filled. The count of bytes can be less only
+ * If the blocking behaviour was selected and it is running, then routine waits until
+ * all requested frames are filled. The returned number of frames can be less only
  * if a signal or underrun occurred.
  *
  * If the non-blocking behaviour is selected, then routine doesn't wait at all.
@@ -1630,6 +1633,7 @@ static const char *const snd_pcm_type_names[] = {
 	PCMTYPE(SOFTVOL),
         PCMTYPE(IOPLUG),
         PCMTYPE(EXTPLUG),
+	PCMTYPE(MMAP_EMUL),
 };
 
 static const char *const snd_pcm_subformat_names[] = {
@@ -2058,7 +2062,7 @@ static int snd_pcm_open_conf(snd_pcm_t **pcmp, const char *name,
 	const char *str;
 	char *buf = NULL, *buf1 = NULL;
 	int err;
-	snd_config_t *conf, *type_conf = NULL;
+	snd_config_t *conf, *type_conf = NULL, *tmp;
 	snd_config_iterator_t i, next;
 	const char *id;
 	const char *lib = NULL, *open_name = NULL;
@@ -2068,7 +2072,6 @@ static int snd_pcm_open_conf(snd_pcm_t **pcmp, const char *name,
 #ifndef PIC
 	extern void *snd_pcm_open_symbols(void);
 #endif
-	void *h = NULL;
 	if (snd_config_get_type(pcm_conf) != SND_CONFIG_TYPE_COMPOUND) {
 		char *val;
 		id = NULL;
@@ -2157,40 +2160,38 @@ static int snd_pcm_open_conf(snd_pcm_t **pcmp, const char *name,
 #ifndef PIC
 	snd_pcm_open_symbols();	/* this call is for static linking only */
 #endif
-	open_func = snd_dlobj_cache_lookup(open_name);
+	open_func = snd_dlobj_cache_get(lib, open_name,
+			SND_DLSYM_VERSION(SND_PCM_DLSYM_VERSION), 1);
 	if (open_func) {
-		err = 0;
-		goto _err;
-	}
-	h = snd_dlopen(lib, RTLD_NOW);
-	if (h)
-		open_func = snd_dlsym(h, open_name, SND_DLSYM_VERSION(SND_PCM_DLSYM_VERSION));
-	err = 0;
-	if (!h) {
-		SNDERR("Cannot open shared library %s",
-		       lib ? lib : "[builtin]");
-		err = -ENOENT;
-	} else if (!open_func) {
-		SNDERR("symbol %s is not defined inside %s", open_name,
-		       lib ? lib : "[builtin]");
-		snd_dlclose(h);
-		err = -ENXIO;
-	}
-       _err:
-	if (err >= 0) {
 		err = open_func(pcmp, name, pcm_root, pcm_conf, stream, mode);
 		if (err >= 0) {
-			if (h /*&& (mode & SND_PCM_KEEP_ALIVE)*/) {
-				snd_dlobj_cache_add(open_name, h, open_func);
-				h = NULL;
-			}
-			(*pcmp)->dl_handle = h;
+			(*pcmp)->open_func = open_func;
 			err = 0;
 		} else {
-			if (h)
-				snd_dlclose(h);
+			snd_dlobj_cache_put(open_func);
 		}
+	} else {
+		err = -ENXIO;
 	}
+	if (err >= 0) {
+		err = snd_config_search(pcm_root, "defaults.pcm.compat", &tmp);
+		if (err >= 0) {
+			long i;
+			if (snd_config_get_integer(tmp, &i) >= 0) {
+				if (i > 0)
+					(*pcmp)->compat = 1;
+			}
+		} else {
+			char *str = getenv("LIBASOUND_COMPAT");
+			if (str && *str)
+				(*pcmp)->compat = 1;
+		}
+		err = snd_config_search(pcm_root, "defaults.pcm.minperiodtime", &tmp);
+		if (err >= 0)
+			snd_config_get_integer(tmp, &(*pcmp)->minperiodtime);
+		err = 0;
+	}
+       _err:
 	if (type_conf)
 		snd_config_delete(type_conf);
 	free(buf);
@@ -2286,8 +2287,7 @@ int snd_pcm_free(snd_pcm_t *pcm)
 	free(pcm->name);
 	free(pcm->hw.link_dst);
 	free(pcm->appl.link_dst);
-	if (pcm->dl_handle)
-		snd_dlclose(pcm->dl_handle);
+	snd_dlobj_cache_put(pcm->open_func);
 	free(pcm);
 	return 0;
 }
@@ -2471,18 +2471,22 @@ int snd_pcm_avail_delay(snd_pcm_t *pcm,
 			snd_pcm_sframes_t *delayp)
 {
 	snd_pcm_sframes_t sf;
+	int err;
 
 	assert(pcm && availp && delayp);
 	if (CHECK_SANITY(! pcm->setup)) {
 		SNDMSG("PCM not set up");
 		return -EIO;
 	}
-	sf = pcm->fast_ops->delay(pcm->fast_op_arg, delayp);
-	if (sf < 0)
-		return (int)sf;
+	err = pcm->fast_ops->hwsync(pcm->fast_op_arg);
+	if (err < 0)
+		return err;
 	sf = pcm->fast_ops->avail_update(pcm->fast_op_arg);
 	if (sf < 0)
 		return (int)sf;
+	err = pcm->fast_ops->delay(pcm->fast_op_arg, delayp);
+	if (err < 0)
+		return err;
 	*availp = sf;
 	return 0;
 }
@@ -3082,6 +3086,23 @@ int snd_pcm_hw_params_can_sync_start(const snd_pcm_hw_params_t *params)
 		return 0; /* FIXME: should be a negative error? */
 	}
 	return !!(params->info & SNDRV_PCM_INFO_SYNC_START);
+}
+
+/**
+ * \brief Check if hardware can disable period wakeups
+ * \param params Configuration space
+ * \return Boolean value
+ * \retval 0 Hardware cannot disable period wakeups
+ * \retval 1 Hardware can disable period wakeups
+ */
+int snd_pcm_hw_params_can_disable_period_wakeup(const snd_pcm_hw_params_t *params)
+{
+	assert(params);
+	if (CHECK_SANITY(params->info == ~0U)) {
+		SNDMSG("invalid PCM info field");
+		return 0; /* FIXME: should be a negative error? */
+	}
+	return !!(params->info & SNDRV_PCM_INFO_NO_PERIOD_WAKEUP);
 }
 
 /**
@@ -4200,6 +4221,56 @@ int snd_pcm_hw_params_get_export_buffer(snd_pcm_t *pcm, snd_pcm_hw_params_t *par
 {
 	assert(pcm && params && val);
 	*val = params->flags & SND_PCM_HW_PARAMS_EXPORT_BUFFER ? 1 : 0;
+	return 0;
+}
+
+/**
+ * \brief Restrict a configuration space to settings without period wakeups
+ * \param pcm PCM handle
+ * \param params Configuration space
+ * \param val 0 = disable, 1 = enable (default) period wakeup
+ * \return Zero on success, otherwise a negative error code.
+ *
+ * This function must be called only on devices where non-blocking mode is
+ * enabled.
+ *
+ * To check whether the hardware does support disabling period wakeups, call
+ * #snd_pcm_hw_params_can_disable_period_wakeup(). If the hardware does not
+ * support this mode, standard period wakeups will be generated.
+ *
+ * Even with disabled period wakeups, the period size/time/count parameters
+ * are valid; it is suggested to use #snd_pcm_hw_params_set_period_size_last().
+ *
+ * When period wakeups are disabled, the application must not use any functions
+ * that could block on this device. The use of poll should be limited to error
+ * cases. The application needs to use an external event or a timer to
+ * check the state of the ring buffer and refill it apropriately.
+ */
+int snd_pcm_hw_params_set_period_wakeup(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, unsigned int val)
+{
+	assert(pcm && params);
+
+	if (!val) {
+		if (!(pcm->mode & SND_PCM_NONBLOCK))
+			return -EINVAL;
+		params->flags |= SND_PCM_HW_PARAMS_NO_PERIOD_WAKEUP;
+	} else
+		params->flags &= ~SND_PCM_HW_PARAMS_NO_PERIOD_WAKEUP;
+
+	return snd_pcm_hw_refine(pcm, params);
+}
+
+/**
+ * \brief Extract period wakeup flag from a configuration space
+ * \param pcm PCM handle
+ * \param params Configuration space
+ * \param val 0 = disabled, 1 = enabled period wakeups
+ * \return Zero on success, otherwise a negative error code.
+ */
+int snd_pcm_hw_params_get_period_wakeup(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, unsigned int *val)
+{
+	assert(pcm && params && val);
+	*val = params->flags & SND_PCM_HW_PARAMS_NO_PERIOD_WAKEUP ? 0 : 1;
 	return 0;
 }
 
@@ -6528,46 +6599,51 @@ snd_pcm_sframes_t snd_pcm_read_areas(snd_pcm_t *pcm, const snd_pcm_channel_area_
 {
 	snd_pcm_uframes_t xfer = 0;
 	snd_pcm_sframes_t err = 0;
-	snd_pcm_state_t state = snd_pcm_state(pcm);
+	snd_pcm_state_t state;
 
 	if (size == 0)
 		return 0;
-
-	switch (state) {
-	case SND_PCM_STATE_PREPARED:
-		err = snd_pcm_start(pcm);
-		if (err < 0)
-			goto _end;
-		break;
-	case SND_PCM_STATE_DRAINING:
-	case SND_PCM_STATE_RUNNING:
-		break;
-	case SND_PCM_STATE_XRUN:
-		return -EPIPE;
-	case SND_PCM_STATE_SUSPENDED:
-		return -ESTRPIPE;
-	case SND_PCM_STATE_DISCONNECTED:
-		return -ENODEV;
-	default:
-		return -EBADFD;
-	}
 
 	while (size > 0) {
 		snd_pcm_uframes_t frames;
 		snd_pcm_sframes_t avail;
 	_again:
-		if (state == SND_PCM_STATE_RUNNING) {
+		state = snd_pcm_state(pcm);
+		switch (state) {
+		case SND_PCM_STATE_PREPARED:
+			err = snd_pcm_start(pcm);
+			if (err < 0)
+				goto _end;
+			break;
+		case SND_PCM_STATE_RUNNING:
 			err = snd_pcm_hwsync(pcm);
 			if (err < 0)
 				goto _end;
+			break;
+		case SND_PCM_STATE_DRAINING:
+		case SND_PCM_STATE_PAUSED:
+			break;
+		case SND_PCM_STATE_XRUN:
+			err = -EPIPE;
+			goto _end;
+		case SND_PCM_STATE_SUSPENDED:
+			err = -ESTRPIPE;
+			goto _end;
+		case SND_PCM_STATE_DISCONNECTED:
+			err = -ENODEV;
+			goto _end;
+		default:
+			err = -EBADFD;
+			goto _end;
 		}
 		avail = snd_pcm_avail_update(pcm);
 		if (avail < 0) {
 			err = avail;
 			goto _end;
 		}
-		if ((snd_pcm_uframes_t)avail < pcm->avail_min &&
-		    size > (snd_pcm_uframes_t)avail) {
+		if (avail == 0) {
+			if (state == SND_PCM_STATE_DRAINING)
+				goto _end;
 			if (pcm->mode & SND_PCM_NONBLOCK) {
 				err = -EAGAIN;
 				goto _end;
@@ -6602,33 +6678,37 @@ snd_pcm_sframes_t snd_pcm_write_areas(snd_pcm_t *pcm, const snd_pcm_channel_area
 {
 	snd_pcm_uframes_t xfer = 0;
 	snd_pcm_sframes_t err = 0;
-	snd_pcm_state_t state = snd_pcm_state(pcm);
+	snd_pcm_state_t state;
 
 	if (size == 0)
 		return 0;
-
-	switch (state) {
-	case SND_PCM_STATE_PREPARED:
-	case SND_PCM_STATE_RUNNING:
-		break;
-	case SND_PCM_STATE_XRUN:
-		return -EPIPE;
-	case SND_PCM_STATE_SUSPENDED:
-		return -ESTRPIPE;
-	case SND_PCM_STATE_DISCONNECTED:
-		return -ENODEV;
-	default:
-		return -EBADFD;
-	}
 
 	while (size > 0) {
 		snd_pcm_uframes_t frames;
 		snd_pcm_sframes_t avail;
 	_again:
-		if (state == SND_PCM_STATE_RUNNING) {
+		state = snd_pcm_state(pcm);
+		switch (state) {
+		case SND_PCM_STATE_PREPARED:
+		case SND_PCM_STATE_PAUSED:
+			break;
+		case SND_PCM_STATE_RUNNING:
 			err = snd_pcm_hwsync(pcm);
 			if (err < 0)
 				goto _end;
+			break;
+		case SND_PCM_STATE_XRUN:
+			err = -EPIPE;
+			goto _end;
+		case SND_PCM_STATE_SUSPENDED:
+			err = -ESTRPIPE;
+			goto _end;
+		case SND_PCM_STATE_DISCONNECTED:
+			err = -ENODEV;
+			goto _end;
+		default:
+			err = -EBADFD;
+			goto _end;
 		}
 		avail = snd_pcm_avail_update(pcm);
 		if (avail < 0) {
@@ -7211,6 +7291,8 @@ OBSOLETE1(snd_pcm_sw_params_get_silence_size, ALSA_0.9, ALSA_0.9.0rc4);
  * \param silent do not print error reason
  * \return 0 when error code was handled successfuly, otherwise a negative error code
  *
+ * This a high-level helper function building on other functions.
+ *
  * This functions handles -EINTR (interrupted system call),
  * -EPIPE (overrun or underrun) and -ESTRPIPE (stream is suspended)
  * error codes trying to prepare given stream for next I/O.
@@ -7231,7 +7313,7 @@ int snd_pcm_recover(snd_pcm_t *pcm, int err, int silent)
                 else
                         s = "overrun";
                 if (!silent)
-                        SNDERR("%s occured", s);
+                        SNDERR("%s occurred", s);
                 err = snd_pcm_prepare(pcm);
                 if (err < 0) {
                         SNDERR("cannot recovery from %s, prepare failed: %s", s, snd_strerror(err));

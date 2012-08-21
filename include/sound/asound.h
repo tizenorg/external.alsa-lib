@@ -278,6 +278,7 @@ enum sndrv_pcm_subformat {
 #define SNDRV_PCM_INFO_HALF_DUPLEX	0x00100000	/* only half duplex */
 #define SNDRV_PCM_INFO_JOINT_DUPLEX	0x00200000	/* playback and capture stream are somewhat correlated */
 #define SNDRV_PCM_INFO_SYNC_START	0x00400000	/* pcm support some kind of sync go */
+#define SNDRV_PCM_INFO_NO_PERIOD_WAKEUP	0x00800000	/* period wakeup can be disabled */
 
 enum sndrv_pcm_state {
 	SNDRV_PCM_STATE_OPEN = 0,	/* stream is open */
@@ -346,6 +347,7 @@ enum sndrv_pcm_hw_param {
 
 #define SNDRV_PCM_HW_PARAMS_NORESAMPLE	(1<<0)  /* avoid rate resampling */
 #define SNDRV_PCM_HW_PARAMS_EXPORT_BUFFER	(1<<1)  /* export buffer */
+#define SNDRV_PCM_HW_PARAMS_NO_PERIOD_WAKEUP	(1<<2)	/* disable period wakeups */
 
 struct sndrv_interval {
 	unsigned int min, max;
@@ -593,6 +595,7 @@ enum sndrv_timer_slave_class {
 #define SNDRV_TIMER_GLOBAL_SYSTEM	0
 #define SNDRV_TIMER_GLOBAL_RTC		1
 #define SNDRV_TIMER_GLOBAL_HPET		2
+#define SNDRV_TIMER_GLOBAL_HRTIMER	3
 
 /* info flags */
 #define SNDRV_TIMER_FLG_SLAVE		(1<<0)	/* cannot be controlled */

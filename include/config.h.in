@@ -51,6 +51,9 @@
 /* Build sequencer component */
 #undef BUILD_SEQ
 
+/* Build UCM component */
+#undef BUILD_UCM
+
 /* Have clock gettime */
 #undef HAVE_CLOCK_GETTIME
 
@@ -99,8 +102,15 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
+/* Define to 1 if you have the `uselocale' function. */
+#undef HAVE_USELOCALE
+
 /* Define to 1 if you have the <wordexp.h> header file. */
 #undef HAVE_WORDEXP_H
+
+/* Define to the sub-directory in which libtool stores uninstalled libraries.
+   */
+#undef LT_OBJDIR
 
 /* No assert debug */
 #undef NDEBUG
@@ -119,6 +129,9 @@
 
 /* Define to the one symbol short name of this package. */
 #undef PACKAGE_TARNAME
+
+/* Define to the home page for this package. */
+#undef PACKAGE_URL
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION

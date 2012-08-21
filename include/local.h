@@ -230,28 +230,34 @@ extern snd_lib_error_handler_t snd_err_msg;
 # define link_warning(symbol, msg)
 #endif
 
-/* open with resmgr */
-#ifdef SUPPORT_RESMGR
 static inline int snd_open_device(const char *filename, int fmode)
 {
-	int fd = open(filename, fmode);
-	if (fd >= 0)
-		return fd;
-	if (errno == EAGAIN || errno == EBUSY)
-		return fd;
-	if (! access(filename, F_OK))
-		return rsm_open_device(filename, fmode);
-	return -1;
-}
-#else
-#define snd_open_device(filename, fmode) open(filename, fmode);
+	int fd;
+
+#ifdef O_CLOEXEC
+	fmode |= O_CLOEXEC;
 #endif
+	fd = open(filename, fmode);
+
+/* open with resmgr */
+#ifdef SUPPORT_RESMGR
+	if (fd < 0) {
+		if (errno == EAGAIN || errno == EBUSY)
+			return fd;
+		if (! access(filename, F_OK))
+			fd = rsm_open_device(filename, fmode);
+	}
+#endif
+	if (fd >= 0)
+		fcntl(fd, F_SETFD, FD_CLOEXEC);
+	return fd;
+}
 
 /* make local functions really local */
-#define snd_dlobj_cache_lookup \
-	snd1_dlobj_cache_lookup
-#define snd_dlobj_cache_add \
-	snd1_dlobj_cache_add
+#define snd_dlobj_cache_get \
+	snd1_dlobj_cache_get
+#define snd_dlobj_cache_put \
+	snd1_dlobj_cache_put
 #define snd_dlobj_cache_cleanup \
 	snd1_dlobj_cache_cleanup
 #define snd_config_set_hop \
@@ -262,8 +268,8 @@ static inline int snd_open_device(const char *filename, int fmode)
 	snd1_config_search_alias_hooks
 
 /* dlobj cache */
-void *snd_dlobj_cache_lookup(const char *name);
-int snd_dlobj_cache_add(const char *name, void *dlobj, void *open_func);
+void *snd_dlobj_cache_get(const char *lib, const char *name, const char *version, int verbose);
+int snd_dlobj_cache_put(void *open_func);
 void snd_dlobj_cache_cleanup(void);
 
 /* for recursive checks */

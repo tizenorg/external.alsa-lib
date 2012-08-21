@@ -355,9 +355,9 @@ static int snd_pcm_dshare_drop(snd_pcm_t *pcm)
 	snd_pcm_direct_t *dshare = pcm->private_data;
 	if (dshare->state == SND_PCM_STATE_OPEN)
 		return -EBADFD;
+	dshare->state = SND_PCM_STATE_SETUP;
 	snd_pcm_direct_timer_stop(dshare);
 	do_silence(pcm);
-	dshare->state = SND_PCM_STATE_SETUP;
 	return 0;
 }
 
@@ -542,7 +542,7 @@ static int snd_pcm_dshare_htimestamp(snd_pcm_t *pcm,
 		if (ok && *avail == avail1)
 			break;
 		*avail = avail1;
-		*tstamp = snd_pcm_hw_fast_tstamp(pcm);
+		*tstamp = snd_pcm_hw_fast_tstamp(dshare->spcm);
 	}
 	return 0;
 }

@@ -1,7 +1,7 @@
 #sbs-git:slp/pkgs/a/alsa-lib alsa-lib 1.0.21a cb38cd61f9258cb9c7ea768f9782b372de5976df
 Name:       alsa-lib
 Summary:    The Advanced Linux Sound Architecture (ALSA) library
-Version: 1.0.21a
+Version:    1.0.24.1
 Release:    1
 Group:      System/Libraries
 License:    LGPLv2+

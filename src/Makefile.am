@@ -38,6 +38,10 @@ if BUILD_SEQ
 SUBDIRS += seq
 libasound_la_LIBADD += seq/libseq.la
 endif
+if BUILD_UCM
+SUBDIRS += ucm
+libasound_la_LIBADD += ucm/libucm.la
+endif
 if BUILD_ALISP
 SUBDIRS += alisp
 libasound_la_LIBADD += alisp/libalisp.la
@@ -73,6 +77,9 @@ hwdep/libhwdep.la:
 
 seq/libseq.la:
 	$(MAKE) -C seq libseq.la
+
+ucm/libucm.la:
+	$(MAKE) -C ucm libucm.la
 
 instr/libinstr.la:
 	$(MAKE) -C instr libinstr.la

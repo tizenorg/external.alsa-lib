@@ -91,9 +91,12 @@ typedef enum sndrv_pcm_hw_param snd_pcm_hw_param_t;
 #define SND_PCM_INFO_JOINT_DUPLEX SNDRV_PCM_INFO_JOINT_DUPLEX
 /** device can do a kind of synchronized start */
 #define SND_PCM_INFO_SYNC_START SNDRV_PCM_INFO_SYNC_START
+/** device can disable period wakeups */
+#define SND_PCM_INFO_NO_PERIOD_WAKEUP SNDRV_PCM_INFO_NO_PERIOD_WAKEUP
 
 #define SND_PCM_HW_PARAMS_NORESAMPLE SNDRV_PCM_HW_PARAMS_NORESAMPLE
 #define SND_PCM_HW_PARAMS_EXPORT_BUFFER SNDRV_PCM_HW_PARAMS_EXPORT_BUFFER
+#define SND_PCM_HW_PARAMS_NO_PERIOD_WAKEUP SNDRV_PCM_HW_PARAMS_NO_PERIOD_WAKEUP
 
 #define SND_PCM_INFO_MONOTONIC	0x80000000
 
@@ -174,16 +177,18 @@ typedef struct {
 } snd_pcm_fast_ops_t;
 
 struct _snd_pcm {
-	void *dl_handle;
+	void *open_func;
 	char *name;
 	snd_pcm_type_t type;
 	snd_pcm_stream_t stream;
 	int mode;
+	long minperiodtime;		/* in us */
 	int poll_fd_count;
 	int poll_fd;
 	unsigned short poll_events;
 	int setup: 1,
-	    monotonic: 1;
+	    monotonic: 1,
+	    compat: 1;
 	snd_pcm_access_t access;	/* access mode */
 	snd_pcm_format_t format;	/* SND_PCM_FORMAT_* */
 	snd_pcm_subformat_t subformat;	/* subformat */
