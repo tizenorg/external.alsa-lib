@@ -1,4 +1,0 @@
-@PREFIX@/lib/pkgconfig/*
-@PREFIX@/lib/*.la
-@PREFIX@/share/aclocal
-@PREFIX@/lib/alsa-lib/smixer/*.la
