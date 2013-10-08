@@ -74,6 +74,8 @@ make %{?jobs:-j%jobs}
 
 %install
 rm -rf %{buildroot}
+mkdir -p %{buildroot}/usr/share/license
+cp COPYING %{buildroot}/usr/share/license/%{name}
 %make_install
 
 rm -f %{buildroot}/%{_bindir}/aserver
@@ -85,6 +87,7 @@ rm -f %{buildroot}/%{_bindir}/aserver
 %files
 %manifest alsa-lib.manifest
 %defattr(-,root,root,-)
+/usr/share/license/%{name}
 
 %files -n libasound
 %manifest alsa-lib.manifest
