@@ -1,14 +1,11 @@
-#sbs-git:slp/pkgs/a/alsa-lib alsa-lib 1.0.21a cb38cd61f9258cb9c7ea768f9782b372de5976df
-Name:       alsa-lib
+Name:       alsa-lib-1.0.25
 Summary:    The Advanced Linux Sound Architecture (ALSA) library
-Version:    1.0.24.1
-Release:    6
+Version:    1.0.25
+Release:    5
 Group:      System/Libraries
 License:    LGPLv2+
 URL:        http://www.alsa-project.org/
-Source0:    ftp://ftp.alsa-project.org/pub/lib/%{name}-%{version}.tar.gz
-Obsoletes:  alsa-lib-1.0.25
-Conflicts:  alsa-lib-1.0.25
+Source0:    %{name}-%{version}.tar.gz
 
 
 %description
@@ -20,27 +17,24 @@ programming and provide higher level functionality as well as support for
 the older OSS API, providing binary compatibility for most OSS programs.
 
 
-%package -n libasound
+
+%package -n libasound-1.0.25
 Summary:    ALSA Library package for multimedia framework middleware package
 Group:      Development/Libraries
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
-Obsoletes:  libasound-1.0.25
-Conflicts:  libasound-1.0.25
 
-%description -n libasound
+%description -n libasound-1.0.25
 ALSA Library package for multimedia framework middleware package
 
 
-%package -n libasound-devel
+%package -n libasound-1.0.25-devel
 Summary:    ALSA Library package for multimedia framework middleware package
 Group:      Development/Libraries
-Requires:   libasound
-Obsoletes:  libasound-1.0.25-devel
-Conflicts:  libasound-1.0.25-devel
+Requires:   libasound-1.0.25
 
-%description -n libasound-devel
-ALSA Library package for multimedia framework middleware package
+%description -n libasound-1.0.25-devel
+ALSA Library package for multimedia framework middleware development package
 
 
 %prep
@@ -48,7 +42,7 @@ ALSA Library package for multimedia framework middleware package
 
 
 %build
-export CFLAGS+=" -fPIC" 
+export CFLAGS+=" -fPIC"
 export LDFLAGS+=" -Wl,--warn-unresolved-symbols -Wl,--hash-style=both -Wl,--as-needed"
 chmod +x autogen.sh
 
@@ -57,13 +51,23 @@ chmod +x autogen.sh
 %ifarch %{arm}
     --with-alsa-devdir=/dev/snd \
 %endif
-    --disable-alisp \
-    --disable-seq \
-    --disable-rawmidi \
-    --disable-python \
-    --with-gnu-ld \
 %ifarch %{arm}
-    --with-pcm-plugins=rate,linear,plug,dmix,dsnoop,asym,mmap,ioplug
+    --disable-alisp \
+%endif
+%ifarch %{arm}
+    --disable-seq \
+%endif
+%ifarch %{arm}
+    --disable-rawmidi \
+%endif
+%ifarch %{arm}
+    --disable-python \
+%endif
+%ifarch %{arm}
+    --with-gnu-ld \
+%endif
+%ifarch %{arm}
+    --with-pcm-plugins=rate,linear,plug,dmix,dsnoop,asym,mmap,ioplug,null
 %endif
 
 make %{?jobs:-j%jobs}
@@ -72,29 +76,26 @@ make %{?jobs:-j%jobs}
 rm -rf %{buildroot}
 mkdir -p %{buildroot}/usr/share/license
 cp COPYING %{buildroot}/usr/share/license/%{name}
-cp COPYING %{buildroot}/usr/share/license/libasound
 %make_install
 
 rm -f %{buildroot}/%{_bindir}/aserver
 
-%post -n libasound -p /sbin/ldconfig
+%post -n libasound-1.0.25 -p /sbin/ldconfig
 
-%postun -n libasound -p /sbin/ldconfig
+%postun -n libasound-1.0.25 -p /sbin/ldconfig
 
 %files
 %manifest alsa-lib.manifest
 %defattr(-,root,root,-)
 %{_datadir}/license/%{name}
 
-%files -n libasound
-%manifest alsa-lib.manifest
+%files -n libasound-1.0.25
 %defattr(-,root,root,-)
 %{_libdir}/lib*.so.*
 %{_libdir}/alsa-lib/smixer/*.so
 %{_datadir}/alsa/*
-%{_datadir}/license/libasound
 
-%files -n libasound-devel
+%files -n libasound-1.0.25-devel
 %defattr(-,root,root,-)
 %{_includedir}/*
 %{_libdir}/lib*.so

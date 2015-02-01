@@ -12,7 +12,7 @@ dnl add API = c+1:0:a+1
 dnl remove API = c+1:0:0
 dnl *************************************************
 AC_CANONICAL_HOST
-AM_INIT_AUTOMAKE(alsa-lib, 1.0.24.1)
+AM_INIT_AUTOMAKE(alsa-lib, 1.0.25)
 eval LIBTOOL_VERSION_INFO="2:0:0"
 dnl *************************************************
 AM_CONDITIONAL(INSTALL_M4, test -n "${ACLOCAL}")
@@ -71,6 +71,16 @@ AC_SUBST(LIBTOOL_VERSION_INFO)
 
 test "x$prefix" = xNONE && prefix=$ac_default_prefix
 
+dnl Do not build static and shared libraries together
+if test "$enable_static" = "$enable_shared" -a "$enable_static" = "yes"; then
+cat <<EOF
+  Please, do not try to compile static and shared libraries together.
+  See INSTALL file for more details (do not use --enable-shared=yes with
+  --enable-static=yes).
+EOF
+  exit 1
+fi
+
 dnl ALSA configuration directory
 AC_ARG_WITH(configdir,
     AS_HELP_STRING([--with-configdir=dir],
@@ -106,6 +116,22 @@ fi
 AC_DEFINE_UNQUOTED(ALSA_PLUGIN_DIR, "$plugindir", [directory containing ALSA add-on modules])
 ALSA_PLUGIN_DIR="$plugindir"
 AC_SUBST(ALSA_PLUGIN_DIR)
+
+AC_ARG_WITH(pkgconfdir,
+    AS_HELP_STRING([--with-pkgconfdir=dir],
+	[path where pkgconfig files are stored]),
+    pkgconfdir="$withval", pkgconfdir="")
+if test -z "$pkgconfdir"; then
+    eval dir="$libdir"
+    case "$dir" in
+    /*) ;;
+    *) dir="$dir"
+    esac
+    pkgconfdir="$dir/pkgconfig"
+fi
+AC_DEFINE_UNQUOTED(ALSA_PKGCONF_DIR, "$pkgconfdir", [directory containing pkgconfig files])
+ALSA_PKGCONF_DIR="$pkgconfdir"
+AC_SUBST(ALSA_PKGCONF_DIR)
 
 dnl Check for versioned symbols
 AC_MSG_CHECKING(for versioned symbols)
@@ -606,7 +632,8 @@ AC_OUTPUT(Makefile doc/Makefile doc/pictures/Makefile doc/doxygen.cfg \
 	  src/pcm/Makefile src/pcm/scopes/Makefile \
 	  src/rawmidi/Makefile src/timer/Makefile \
           src/hwdep/Makefile src/seq/Makefile src/ucm/Makefile \
-          src/compat/Makefile src/alisp/Makefile src/conf/Makefile \
+          src/compat/Makefile src/alisp/Makefile \
+	  src/conf/Makefile src/conf/alsa.conf.d/Makefile \
 	  src/conf/cards/Makefile \
 	  src/conf/pcm/Makefile \
 	  modules/Makefile modules/mixer/Makefile modules/mixer/simple/Makefile \

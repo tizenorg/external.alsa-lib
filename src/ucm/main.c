@@ -10,7 +10,7 @@
  *  Lesser General Public License for more details.
  *
  *  You should have received a copy of the GNU Lesser General Public
- *  License along with this library; if not, write to the Free Software  
+ *  License along with this library; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
  *  Support for the verb/device/modifier core logic and API,
@@ -62,7 +62,7 @@ static int list_count(struct list_head *list)
 {
         struct list_head *pos;
         int count = 0;
-        
+
         list_for_each(pos, list) {
                 count += 1;
         }
@@ -73,7 +73,7 @@ static int alloc_str_list(struct list_head *list, int mult, char **result[])
 {
         char **res;
         int cnt;
-        
+
         cnt = list_count(list) * mult;
         if (cnt == 0) {
 		*result = NULL;
@@ -144,7 +144,7 @@ static int open_ctl(snd_use_case_mgr_t *uc_mgr,
 		free(uc_mgr->ctl_dev);
 		uc_mgr->ctl_dev = NULL;
 		snd_ctl_close(uc_mgr->ctl);
-	
+
 	}
 	err = snd_ctl_open(ctl, ctl_dev, 0);
 	if (err < 0)
@@ -281,9 +281,11 @@ static int execute_sequence(snd_use_case_mgr_t *uc_mgr,
 			usleep(s->data.sleep);
 			break;
 		case SEQUENCE_ELEMENT_TYPE_EXEC:
-			err = system(s->data.exec);
+			/* Remove because security issues */
+			/* err = system(s->data.exec);
 			if (err < 0)
-				goto __fail;
+				goto __fail; */
+			uc_error("unsupported known sequence command %i", s->type);
 			break;
 		default:
 			uc_error("unknown sequence command %i", s->type);
@@ -308,7 +310,7 @@ static int execute_sequence(snd_use_case_mgr_t *uc_mgr,
 static int import_master_config(snd_use_case_mgr_t *uc_mgr)
 {
 	int err;
-	
+
 	err = uc_mgr_import_master_config(uc_mgr);
 	if (err < 0)
 		return err;
@@ -464,7 +466,7 @@ static inline struct use_case_verb *find_verb(snd_use_case_mgr_t *uc_mgr,
 		    verb_name);
 }
 
-static int is_devlist_supported(snd_use_case_mgr_t *uc_mgr, 
+static int is_devlist_supported(snd_use_case_mgr_t *uc_mgr,
 	struct dev_list *dev_list)
 {
 	struct dev_list_node *device;
@@ -497,13 +499,13 @@ static int is_devlist_supported(snd_use_case_mgr_t *uc_mgr,
 	return 1 - found_ret;
 }
 
-static inline int is_modifier_supported(snd_use_case_mgr_t *uc_mgr, 
+static inline int is_modifier_supported(snd_use_case_mgr_t *uc_mgr,
 	struct use_case_modifier *modifier)
 {
 	return is_devlist_supported(uc_mgr, &modifier->dev_list);
 }
 
-static inline int is_device_supported(snd_use_case_mgr_t *uc_mgr, 
+static inline int is_device_supported(snd_use_case_mgr_t *uc_mgr,
 	struct use_case_device *device)
 {
 	return is_devlist_supported(uc_mgr, &device->dev_list);
@@ -774,7 +776,7 @@ static int dismantle_use_case(snd_use_case_mgr_t *uc_mgr)
 
 	err = execute_sequence(uc_mgr, &uc_mgr->default_list,
 			       &uc_mgr->value_list, NULL, NULL);
-	
+
 	return err;
 }
 
@@ -820,7 +822,7 @@ static int get_device_list(snd_use_case_mgr_t *uc_mgr, const char **list[],
                            char *verbname)
 {
         struct use_case_verb *verb;
-        
+
         if (verbname) {
                 verb = find_verb(uc_mgr, verbname);
         } else {
@@ -843,7 +845,7 @@ static int get_modifier_list(snd_use_case_mgr_t *uc_mgr, const char **list[],
                              char *verbname)
 {
         struct use_case_verb *verb;
-        
+
         if (verbname) {
                 verb = find_verb(uc_mgr, verbname);
         } else {
@@ -945,7 +947,7 @@ static int add_values(struct list_head *list,
         struct myvalue *val;
         struct list_head *pos, *pos1;
         int match;
-        
+
         list_for_each(pos, source) {
                 v = list_entry(pos, struct ucm_value, list);
                 if (check_identifier(identifier, v->name)) {
@@ -987,7 +989,7 @@ static int get_value_list(snd_use_case_mgr_t *uc_mgr,
         struct use_case_modifier *mod;
         char **res;
         int err;
-        
+
         if (verbname) {
                 verb = find_verb(uc_mgr, verbname);
         } else {
@@ -1128,7 +1130,7 @@ static int get_value1(const char **value, struct list_head *value_list,
 {
         struct ucm_value *val;
         struct list_head *pos;
-        
+
 	if (!value_list)
 		return -ENOENT;
 
@@ -1235,13 +1237,13 @@ static int get_value(snd_use_case_mgr_t *uc_mgr,
 /**
  * \brief Get current - string
  * \param uc_mgr Use case manager
- * \param identifier 
+ * \param identifier
  * \param value Value pointer
  * \return Zero if success, otherwise a negative error code
  *
  * Note: String is dynamically allocated, use free() to
  * deallocate this string.
- */      
+ */
 int snd_use_case_get(snd_use_case_mgr_t *uc_mgr,
 		     const char *identifier,
 		     const char **value)
@@ -1321,7 +1323,7 @@ long device_status(snd_use_case_mgr_t *uc_mgr,
 {
         struct use_case_device *dev;
         struct list_head *pos;
-        
+
         list_for_each(pos, &uc_mgr->active_devices) {
                 dev = list_entry(pos, struct use_case_device, active_list);
                 if (strcmp(dev->name, device_name) == 0)
@@ -1335,7 +1337,7 @@ long modifier_status(snd_use_case_mgr_t *uc_mgr,
 {
         struct use_case_modifier *mod;
         struct list_head *pos;
-        
+
         list_for_each(pos, &uc_mgr->active_modifiers) {
                 mod = list_entry(pos, struct use_case_modifier, active_list);
                 if (strcmp(mod->name, modifier_name) == 0)
@@ -1348,8 +1350,8 @@ long modifier_status(snd_use_case_mgr_t *uc_mgr,
 /**
  * \brief Get current - integer
  * \param uc_mgr Use case manager
- * \param identifier 
- * \return Value if success, otherwise a negative error code 
+ * \param identifier
+ * \return Value if success, otherwise a negative error code
  */
 int snd_use_case_geti(snd_use_case_mgr_t *uc_mgr,
 		      const char *identifier,
@@ -1500,7 +1502,7 @@ static int switch_device(snd_use_case_mgr_t *uc_mgr,
         struct transition_sequence *trans;
         struct list_head *pos;
         int err, seq_found = 0;
-        
+
         if (uc_mgr->active_verb == NULL)
                 return -ENOENT;
         if (device_status(uc_mgr, old_device) == 0) {
@@ -1554,7 +1556,7 @@ static int switch_modifier(snd_use_case_mgr_t *uc_mgr,
         struct transition_sequence *trans;
         struct list_head *pos;
         int err, seq_found = 0;
-        
+
         if (uc_mgr->active_verb == NULL)
                 return -ENOENT;
         if (modifier_status(uc_mgr, old_modifier) == 0) {
@@ -1595,7 +1597,7 @@ static int switch_modifier(snd_use_case_mgr_t *uc_mgr,
                 if (err < 0)
                         return err;
         }
-        return err;        
+        return err;
 }
 
 /**

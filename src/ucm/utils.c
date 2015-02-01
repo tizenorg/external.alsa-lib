@@ -103,7 +103,7 @@ void uc_mgr_free_dev_list(struct dev_list *dev_list)
 {
 	struct list_head *pos, *npos;
 	struct dev_list_node *dlist;
-
+	
 	list_for_each_safe(pos, npos, &dev_list->list) {
 		dlist = list_entry(pos, struct dev_list_node, list);
 		free(dlist->name);

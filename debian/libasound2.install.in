@@ -1,4 +1,0 @@
-@PREFIX@/lib/lib*.so
-@PREFIX@/lib/lib*.so.*
-@PREFIX@/lib/alsa-lib/smixer/*.so
-@PREFIX@/share/alsa/*

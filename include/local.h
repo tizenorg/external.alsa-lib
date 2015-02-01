@@ -120,6 +120,7 @@ typedef struct sndrv_seq_event snd_seq_event_t;
 #include "mixer.h"
 #include "seq_event.h"
 #include "seq.h"
+#include <sound/asequencer.h>
 #include "seqmid.h"
 #include "seq_midi_event.h"
 #include "list.h"
