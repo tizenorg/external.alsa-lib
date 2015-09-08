@@ -42,6 +42,7 @@ and IEC958 structure.
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <stdarg.h>
 #include <unistd.h>
 #include <string.h>
@@ -356,6 +357,74 @@ int snd_ctl_elem_add_boolean(snd_ctl_t *ctl, const snd_ctl_elem_id_t *id,
 	info->value.integer.min = 0;
 	info->value.integer.max = 1;
 	return ctl->ops->element_add(ctl, info);
+}
+
+/**
+ * \brief Create and add a user-defined control element of type enumerated.
+ * \param[in] ctl Control device handle.
+ * \param[in] id ID of the new control element.
+ * \param[in] count Number of element values.
+ * \param[in] items Range of possible values (0 ... \a items - 1).
+ * \param[in] names An array containing \a items strings.
+ * \return Zero on success, otherwise a negative error code.
+ *
+ * This function creates a user element, i.e., a control element that is not
+ * controlled by the control device's driver but that is just stored together
+ * with the other elements of \a ctl.
+ *
+ * The fields of \a id, except numid, must be set to unique values that
+ * identify the new element.
+ *
+ * The new element is locked; its value is initialized as zero.
+ *
+ * \par Errors:
+ * <dl>
+ * <dt>-EBUSY<dd>A control element with ID \a id already exists.
+ * <dt>-EINVAL<dd>\a count is not at least one or greater than 128, or \a items
+ * 	is not at least one, or a string in \a names is empty or longer than 63
+ * 	bytes, or the strings in \a names require more than 64 KB storage.
+ * <dt>-ENOMEM<dd>Out of memory, or there are too many user control elements.
+ * <dt>-ENXIO<dd>This driver does not support (enumerated) user controls.
+ * <dt>-ENODEV<dd>Device unplugged.
+ * </dl>
+ *
+ * \par Compatibility:
+ * snd_ctl_elem_add_enumerated() was introduced in ALSA 1.0.25.
+ */
+int snd_ctl_elem_add_enumerated(snd_ctl_t *ctl, const snd_ctl_elem_id_t *id,
+				unsigned int count, unsigned int items,
+				const char *const names[])
+{
+	snd_ctl_elem_info_t *info;
+	unsigned int i, bytes;
+	char *buf, *p;
+	int err;
+
+	assert(ctl && id && id->name[0] && names);
+
+	snd_ctl_elem_info_alloca(&info);
+	info->id = *id;
+	info->type = SND_CTL_ELEM_TYPE_ENUMERATED;
+	info->count = count;
+	info->value.enumerated.items = items;
+
+	bytes = 0;
+	for (i = 0; i < items; ++i)
+		bytes += strlen(names[i]) + 1;
+	buf = malloc(bytes);
+	if (!buf)
+		return -ENOMEM;
+	info->value.enumerated.names_ptr = (uintptr_t)buf;
+	info->value.enumerated.names_length = bytes;
+	p = buf;
+	for (i = 0; i < items; ++i)
+		p = stpcpy(p, names[i]) + 1;
+
+	err = ctl->ops->element_add(ctl, info);
+
+	free(buf);
+
+	return err;
 }
 
 /**
@@ -917,6 +986,28 @@ int snd_ctl_open_lconf(snd_ctl_t **ctlp, const char *name,
 {
 	assert(ctlp && name && lconf);
 	return snd_ctl_open_noupdate(ctlp, lconf, name, mode);
+}
+
+/**
+ * \brief Opens a fallback CTL
+ * \param ctlp Returned CTL handle
+ * \param root Configuration root
+ * \param name ASCII identifier of the CTL handle used as fallback
+ * \param orig_name The original ASCII name
+ * \param mode Open mode (see #SND_CTL_NONBLOCK, #SND_CTL_ASYNC)
+ * \return 0 on success otherwise a negative error code
+ */
+int snd_ctl_open_fallback(snd_ctl_t **ctlp, snd_config_t *root,
+			  const char *name, const char *orig_name, int mode)
+{
+	int err;
+	assert(ctlp && name && root);
+	err = snd_ctl_open_noupdate(ctlp, root, name, mode);
+	if (err >= 0) {
+		free((*ctlp)->name);
+		(*ctlp)->name = orig_name ? strdup(orig_name) : NULL;
+	}
+	return err;
 }
 
 #ifndef DOC_HIDDEN

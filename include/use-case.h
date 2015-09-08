@@ -80,9 +80,10 @@ extern "C" {
  *
  *  o Query the supported use case verbs, devices and modifiers for the machine.
  *  o Set and Get use case verbs, devices and modifiers for the machine.
- *  o Get the ALSA PCM playback and capture device PCMs for use case verb and
+ *  o Get the ALSA PCM playback and capture device PCMs for use case verb,
+ *     use case device and modifier.
+ *  o Get the TQ parameter for each use case verb, use case device and
  *     modifier.
- *  o Get the TQ parameter for each use case verb and modifier.
  *  o Get the ALSA master playback and capture volume/switch kcontrols
  *     for each use case.
  */
@@ -111,7 +112,7 @@ extern "C" {
  * Use Case Device.
  *
  * Physical system devices the render and capture audio. Devices can be OR'ed
- * together to support audio on similtanious devices.
+ * together to support audio on simultaneous devices.
  */
 #define SND_USE_CASE_DEV_NONE		"None"
 #define SND_USE_CASE_DEV_SPEAKER	"Speaker"
@@ -135,13 +136,13 @@ extern "C" {
  * e.g. to record a voice call :-
  *  1. Set verb to SND_USE_CASE_VERB_VOICECALL (for voice call)
  *  2. Set modifier SND_USE_CASE_MOD_CAPTURE_VOICE when capture required.
- *  3. Call snd_use_case_get("_pcm_/_cdevice") to get ALSA source PCM name
+ *  3. Call snd_use_case_get("CapturePCM") to get ALSA source PCM name
  *     with captured voice pcm data.
  *
  * e.g. to play a ring tone when listenin to MP3 Music :-
  *  1. Set verb to SND_USE_CASE_VERB_HIFI (for MP3 playback)
  *  2. Set modifier to SND_USE_CASE_MOD_PLAY_TONE when incoming call happens.
- *  3. Call snd_use_case_get("_pcm_/_pdevice") to get ALSA PCM sink name for
+ *  3. Call snd_use_case_get("PlaybackPCM") to get ALSA PCM sink name for
  *     ringtone pcm data.
  */
 #define SND_USE_CASE_MOD_CAPTURE_VOICE		"Capture Voice"
@@ -204,6 +205,11 @@ int snd_use_case_free_list(const char *list[], int items);
  *   _enadevs		- get list of enabled devices
  *   _enamods		- get list of enabled modifiers
  *
+ *   _supporteddevs/<modifier>|<device>[/<verb>]   - list of supported devices
+ *   _conflictingdevs/<modifier>|<device>[/<verb>] - list of conflicting devices
+ *   Note that at most one of the supported/conflicting devs lists has
+ *   any entries, and when neither is present, all devices are supported.
+ *
  */
 int snd_use_case_get_list(snd_use_case_mgr_t *uc_mgr,
                           const char *identifier,
@@ -221,21 +227,47 @@ int snd_use_case_get_list(snd_use_case_mgr_t *uc_mgr,
  * deallocate this string.
  *
  * Known identifiers:
- *   NULL 				- return current card
- *   _verb				- return current verb
- *   TQ[/<modifier>]			- Tone Quality [for given modifier]
- *   PlaybackPCM[/<modifier>]		- full PCM playback device name
- *   CapturePCM[/<modifier>]		- full PCM capture device name
- *   PlaybackCTL[/<modifier>]		- playback control device name
- *   PlaybackVolume[/<modifier>]	- playback control volume ID string
- *   PlaybackSwitch[/<modifier>]	- playback control switch ID string
- *   CaptureCTL[/<modifier>]		- capture control device name
- *   CaptureVolume[/<modifier>]		- capture control volume ID string
- *   CaptureSwitch[/<modifier>]		- capture control switch ID string
- *   PlaybackMixer[/<modifier>]		- name of playback mixer
- *   PlaybackMixerID[/<modifier>]	- mixer playback ID
- *   CaptureMixer[/<modifier>]		- name of capture mixer
- *   CaptureMixerID[/<modifier>]	- mixer capture ID
+ *   NULL 		- return current card
+ *   _verb		- return current verb
+ *
+ *   [=]<NAME>[/[<modifier>|</device>][/<verb>]]
+ *                      - value identifier <NAME>
+ *                      - Search starts at given modifier or device if any,
+ *                          else at a verb
+ *                      - Search starts at given verb if any,
+ *                          else current verb
+ *                      - Searches modifier/device, then verb, then defaults
+ *                      - Specify a leading "=" to search only the exact
+ *                        device/modifier/verb specified, and not search
+ *                        through each object in turn.
+ *                      - Examples:
+ *                          "PlaybackPCM/Play Music"
+ *                          "CapturePCM/SPDIF"
+ *                        From ValueDefaults only:
+ *                          "=Variable"
+ *                        From current active verb:
+ *                          "=Variable//"
+ *                        From verb "Verb":
+ *                          "=Variable//Verb"
+ *                        From "Modifier" in current active verb:
+ *                          "=Variable/Modifier/"
+ *                        From "Modifier" in "Verb":
+ *                          "=Variable/Modifier/Verb"
+ *
+ * Recommended names for values:
+ *   TQ			- Tone Quality
+ *   PlaybackPCM	- full PCM playback device name
+ *   CapturePCM		- full PCM capture device name
+ *   PlaybackCTL	- playback control device name
+ *   PlaybackVolume	- playback control volume ID string
+ *   PlaybackSwitch	- playback control switch ID string
+ *   CaptureCTL		- capture control device name
+ *   CaptureVolume	- capture control volume ID string
+ *   CaptureSwitch	- capture control switch ID string
+ *   PlaybackMixer	- name of playback mixer
+ *   PlaybackMixerID	- mixer playback ID
+ *   CaptureMixer	- name of capture mixer
+ *   CaptureMixerID	- mixer capture ID
  */
 int snd_use_case_get(snd_use_case_mgr_t *uc_mgr,
                      const char *identifier,

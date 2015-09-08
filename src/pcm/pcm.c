@@ -809,7 +809,9 @@ int snd_pcm_hw_params_current(snd_pcm_t *pcm, snd_pcm_hw_params_t *params)
  *
  * The configuration is chosen fixing single parameters in this order:
  * first access, first format, first subformat, min channels, min rate, 
- * min period time, max buffer size, min tick time
+ * min period time, max buffer size, min tick time. If no mutually
+ * compatible set of parameters can be chosen, a negative error code
+ * will be returned.
  *
  * After this call, #snd_pcm_prepare() is called automatically and
  * the stream is brought to \c #SND_PCM_STATE_PREPARED state.
@@ -817,6 +819,9 @@ int snd_pcm_hw_params_current(snd_pcm_t *pcm, snd_pcm_hw_params_t *params)
  * The hardware parameters cannot be changed when the stream is
  * running (active). The software parameters can be changed
  * at any time.
+ *
+ * The configuration space will be updated to reflect the chosen
+ * parameters.
  */
 int snd_pcm_hw_params(snd_pcm_t *pcm, snd_pcm_hw_params_t *params)
 {
@@ -2259,6 +2264,30 @@ int snd_pcm_open_lconf(snd_pcm_t **pcmp, const char *name,
 	return snd_pcm_open_noupdate(pcmp, lconf, name, stream, mode, 0);
 }
 
+/**
+ * \brief Opens a fallback PCM
+ * \param pcmp Returned PCM handle
+ * \param root Configuration root
+ * \param name ASCII identifier of the PCM handle
+ * \param orig_name The original ASCII name
+ * \param stream Wanted stream
+ * \param mode Open mode (see #SND_PCM_NONBLOCK, #SND_PCM_ASYNC)
+ * \return 0 on success otherwise a negative error code
+ */
+int snd_pcm_open_fallback(snd_pcm_t **pcmp, snd_config_t *root,
+			  const char *name, const char *orig_name,
+			  snd_pcm_stream_t stream, int mode)
+{
+	int err;
+	assert(pcmp && name && root);
+	err = snd_pcm_open_noupdate(pcmp, root, name, stream, mode, 0);
+	if (err >= 0) {
+		free((*pcmp)->name);
+		(*pcmp)->name = orig_name ? strdup(orig_name) : NULL;
+	}
+	return err;
+}
+
 #ifndef DOC_HIDDEN
 int snd_pcm_new(snd_pcm_t **pcmp, snd_pcm_type_t type, const char *name,
 		snd_pcm_stream_t stream, int mode)
@@ -2858,15 +2887,14 @@ int snd_pcm_hw_params_dump(snd_pcm_hw_params_t *params, snd_output_t *out)
 }
 
 /**
- * \brief Check, if hardware supports sample-resolution mmap for given configuration
+ * \brief Check if hardware supports sample-resolution mmap for given configuration
  * \param params Configuration space
- * \return Boolean value
  * \retval 0 Hardware doesn't support sample-resolution mmap
  * \retval 1 Hardware supports sample-resolution mmap
  *
- * The return value is always one when given configuration is not exactly one.
- * Usually, #snd_pcm_hw_params() function chooses one configuration
- * from the configuration space.
+ * This function should only be called when the configuration space
+ * contains a single configuration. Call #snd_pcm_hw_params to choose
+ * a single configuration from the configuration space.
  */
 int snd_pcm_hw_params_can_mmap_sample_resolution(const snd_pcm_hw_params_t *params)
 {
@@ -2879,15 +2907,14 @@ int snd_pcm_hw_params_can_mmap_sample_resolution(const snd_pcm_hw_params_t *para
 }
 
 /**
- * \brief Check, if hardware does double buffering for start/stop for given configuration
+ * \brief Check if hardware does double buffering for start/stop for given configuration
  * \param params Configuration space
- * \return Boolean value
  * \retval 0 Hardware doesn't do double buffering for start/stop
  * \retval 1 Hardware does double buffering for start/stop
  *
- * It is not allowed to call this function when given configuration is not exactly one.
- * Usually, #snd_pcm_hw_params() function chooses one configuration
- * from the configuration space.
+ * This function should only be called when the configuration space
+ * contains a single configuration. Call #snd_pcm_hw_params to choose
+ * a single configuration from the configuration space.
  */
 int snd_pcm_hw_params_is_double(const snd_pcm_hw_params_t *params)
 {
@@ -2900,15 +2927,14 @@ int snd_pcm_hw_params_is_double(const snd_pcm_hw_params_t *params)
 }
 
 /**
- * \brief Check, if hardware does double buffering for data transfers for given configuration
+ * \brief Check if hardware does double buffering for data transfers for given configuration
  * \param params Configuration space
- * \return Boolean value
  * \retval 0 Hardware doesn't do double buffering for data transfers
  * \retval 1 Hardware does double buffering for data transfers
  *
- * It is not allowed to call this function when given configuration is not exactly one.
- * Usually, #snd_pcm_hw_params() function chooses one configuration
- * from the configuration space.
+ * This function should only be called when the configuration space
+ * contains a single configuration. Call #snd_pcm_hw_params to choose
+ * a single configuration from the configuration space.
  */
 int snd_pcm_hw_params_is_batch(const snd_pcm_hw_params_t *params)
 {
@@ -2921,15 +2947,14 @@ int snd_pcm_hw_params_is_batch(const snd_pcm_hw_params_t *params)
 }
 
 /**
- * \brief Check, if hardware does block transfers for samples for given configuration
+ * \brief Check if hardware does block transfers for samples for given configuration
  * \param params Configuration space
- * \return Boolean value
  * \retval 0 Hardware doesn't block transfers
  * \retval 1 Hardware does block transfers
  *
- * It is not allowed to call this function when given configuration is not exactly one.
- * Usually, #snd_pcm_hw_params() function chooses one configuration
- * from the configuration space.
+ * This function should only be called when the configuration space
+ * contains a single configuration. Call #snd_pcm_hw_params to choose
+ * a single configuration from the configuration space.
  */
 int snd_pcm_hw_params_is_block_transfer(const snd_pcm_hw_params_t *params)
 {
@@ -2942,15 +2967,14 @@ int snd_pcm_hw_params_is_block_transfer(const snd_pcm_hw_params_t *params)
 }
 
 /**
- * \brief Check, if timestamps are monotonic for given configuration
+ * \brief Check if timestamps are monotonic for given configuration
  * \param params Configuration space
- * \return Boolean value
  * \retval 0 Device doesn't do monotomic timestamps
  * \retval 1 Device does monotonic timestamps
  *
- * It is not allowed to call this function when given configuration is not exactly one.
- * Usually, #snd_pcm_hw_params() function chooses one configuration
- * from the configuration space.
+ * This function should only be called when the configuration space
+ * contains a single configuration. Call #snd_pcm_hw_params to choose
+ * a single configuration from the configuration space.
  */
 int snd_pcm_hw_params_is_monotonic(const snd_pcm_hw_params_t *params)
 {
@@ -2963,15 +2987,14 @@ int snd_pcm_hw_params_is_monotonic(const snd_pcm_hw_params_t *params)
 }
 
 /**
- * \brief Check, if hardware supports overrange detection
+ * \brief Check if hardware supports overrange detection
  * \param params Configuration space
- * \return Boolean value
  * \retval 0 Hardware doesn't support overrange detection
  * \retval 1 Hardware supports overrange detection
  *
- * It is not allowed to call this function when given configuration is not exactly one.
- * Usually, #snd_pcm_hw_params() function chooses one configuration
- * from the configuration space.
+ * This function should only be called when the configuration space
+ * contains a single configuration. Call #snd_pcm_hw_params to choose
+ * a single configuration from the configuration space.
  */
 int snd_pcm_hw_params_can_overrange(const snd_pcm_hw_params_t *params)
 {
@@ -2984,15 +3007,14 @@ int snd_pcm_hw_params_can_overrange(const snd_pcm_hw_params_t *params)
 }
 
 /**
- * \brief Check, if hardware supports pause
+ * \brief Check if hardware supports pause
  * \param params Configuration space
- * \return Boolean value
  * \retval 0 Hardware doesn't support pause
  * \retval 1 Hardware supports pause
  *
- * It is not allowed to call this function when given configuration is not exactly one.
- * Usually, #snd_pcm_hw_params() function chooses one configuration
- * from the configuration space.
+ * This function should only be called when the configuration space
+ * contains a single configuration. Call #snd_pcm_hw_params to choose
+ * a single configuration from the configuration space.
  */
 int snd_pcm_hw_params_can_pause(const snd_pcm_hw_params_t *params)
 {
@@ -3005,15 +3027,14 @@ int snd_pcm_hw_params_can_pause(const snd_pcm_hw_params_t *params)
 }
 
 /**
- * \brief Check, if hardware supports resume
+ * \brief Check if hardware supports resume
  * \param params Configuration space
- * \return Boolean value
  * \retval 0 Hardware doesn't support resume
  * \retval 1 Hardware supports resume
  *
- * It is not allowed to call this function when given configuration is not exactly one.
- * Usually, #snd_pcm_hw_params() function chooses one configuration
- * from the configuration space.
+ * This function should only be called when the configuration space
+ * contains a single configuration. Call #snd_pcm_hw_params to choose
+ * a single configuration from the configuration space.
  */
 int snd_pcm_hw_params_can_resume(const snd_pcm_hw_params_t *params)
 {
@@ -3026,15 +3047,14 @@ int snd_pcm_hw_params_can_resume(const snd_pcm_hw_params_t *params)
 }
 
 /**
- * \brief Check, if hardware does half-duplex only
+ * \brief Check if hardware does half-duplex only
  * \param params Configuration space
- * \return Boolean value
  * \retval 0 Hardware doesn't do half-duplex
  * \retval 1 Hardware does half-duplex
  *
- * It is not allowed to call this function when given configuration is not exactly one.
- * Usually, #snd_pcm_hw_params() function chooses one configuration
- * from the configuration space.
+ * This function should only be called when the configuration space
+ * contains a single configuration. Call #snd_pcm_hw_params to choose
+ * a single configuration from the configuration space.
  */
 int snd_pcm_hw_params_is_half_duplex(const snd_pcm_hw_params_t *params)
 {
@@ -3047,15 +3067,14 @@ int snd_pcm_hw_params_is_half_duplex(const snd_pcm_hw_params_t *params)
 }
 
 /**
- * \brief Check, if hardware does joint-duplex (playback and capture are somewhat correlated)
+ * \brief Check if hardware does joint-duplex (playback and capture are somewhat correlated)
  * \param params Configuration space
- * \return Boolean value
  * \retval 0 Hardware doesn't do joint-duplex
  * \retval 1 Hardware does joint-duplex
  *
- * It is not allowed to call this function when given configuration is not exactly one.
- * Usually, #snd_pcm_hw_params() function chooses one configuration
- * from the configuration space.
+ * This function should only be called when the configuration space
+ * contains a single configuration. Call #snd_pcm_hw_params to choose
+ * a single configuration from the configuration space.
  */
 int snd_pcm_hw_params_is_joint_duplex(const snd_pcm_hw_params_t *params)
 {
@@ -3068,15 +3087,14 @@ int snd_pcm_hw_params_is_joint_duplex(const snd_pcm_hw_params_t *params)
 }
 
 /**
- * \brief Check, if hardware supports synchronized start with sample resolution
+ * \brief Check if hardware supports synchronized start with sample resolution
  * \param params Configuration space
- * \return Boolean value
  * \retval 0 Hardware doesn't support synchronized start
  * \retval 1 Hardware supports synchronized start
  *
- * It is not allowed to call this function when given configuration is not exactly one.
- * Usually, #snd_pcm_hw_params() function chooses one configuration
- * from the configuration space.
+ * This function should only be called when the configuration space
+ * contains a single configuration. Call #snd_pcm_hw_params to choose
+ * a single configuration from the configuration space.
  */
 int snd_pcm_hw_params_can_sync_start(const snd_pcm_hw_params_t *params)
 {
@@ -3091,7 +3109,6 @@ int snd_pcm_hw_params_can_sync_start(const snd_pcm_hw_params_t *params)
 /**
  * \brief Check if hardware can disable period wakeups
  * \param params Configuration space
- * \return Boolean value
  * \retval 0 Hardware cannot disable period wakeups
  * \retval 1 Hardware can disable period wakeups
  */
@@ -3112,9 +3129,9 @@ int snd_pcm_hw_params_can_disable_period_wakeup(const snd_pcm_hw_params_t *param
  * \param rate_den Pointer to returned rate denominator
  * \return 0 otherwise a negative error code if the info is not available
  *
- * It is not allowed to call this function when given configuration is not exactly one.
- * Usually, #snd_pcm_hw_params() function chooses one configuration
- * from the configuration space.
+ * This function should only be called when the configuration space
+ * contains a single configuration. Call #snd_pcm_hw_params to choose
+ * a single configuration from the configuration space.
  */
 int snd_pcm_hw_params_get_rate_numden(const snd_pcm_hw_params_t *params,
 				      unsigned int *rate_num, unsigned int *rate_den)
@@ -3134,9 +3151,9 @@ int snd_pcm_hw_params_get_rate_numden(const snd_pcm_hw_params_t *params,
  * \param params Configuration space
  * \return signification bits in sample otherwise a negative error code if the info is not available
  *
- * It is not allowed to call this function when given configuration is not exactly one.
- * Usually, #snd_pcm_hw_params() function chooses one configuration
- * from the configuration space.
+ * This function should only be called when the configuration space
+ * contains a single configuration. Call #snd_pcm_hw_params to choose
+ * a single configuration from the configuration space.
  */
 int snd_pcm_hw_params_get_sbits(const snd_pcm_hw_params_t *params)
 {
@@ -3149,13 +3166,13 @@ int snd_pcm_hw_params_get_sbits(const snd_pcm_hw_params_t *params)
 }
 
 /**
- * \brief Get hard are FIFO size info from a configuration space
+ * \brief Get hardware FIFO size info from a configuration space
  * \param params Configuration space
  * \return FIFO size in frames otherwise a negative error code if the info is not available
  *
- * It is not allowed to call this function when given configuration is not exactly one.
- * Usually, #snd_pcm_hw_params() function chooses one configuration
- * from the configuration space.
+ * This function should only be called when the configuration space
+ * contains a single configuration. Call #snd_pcm_hw_params to choose
+ * a single configuration from the configuration space.
  */
 int snd_pcm_hw_params_get_fifo_size(const snd_pcm_hw_params_t *params)
 {
@@ -3171,6 +3188,9 @@ int snd_pcm_hw_params_get_fifo_size(const snd_pcm_hw_params_t *params)
  * \brief Fill params with a full configuration space for a PCM
  * \param pcm PCM handle
  * \param params Configuration space
+ *
+ * The configuration space will be filled with all possible ranges
+ * for the PCM device.
  */
 int snd_pcm_hw_params_any(snd_pcm_t *pcm, snd_pcm_hw_params_t *params)
 {
@@ -3534,7 +3554,7 @@ void snd_pcm_hw_params_copy(snd_pcm_hw_params_t *dst, const snd_pcm_hw_params_t 
  * \brief Extract access type from a configuration space
  * \param params Configuration space
  * \param access Returned value
- * \return access type otherwise a negative error code if not exactly one is present
+ * \return access type otherwise a negative error code if the configuration space does not contain a single value
  */
 #ifndef DOXYGEN
 int INTERNAL(snd_pcm_hw_params_get_access)(const snd_pcm_hw_params_t *params, snd_pcm_access_t *access)
@@ -3635,7 +3655,7 @@ int snd_pcm_hw_params_get_access_mask(snd_pcm_hw_params_t *params, snd_pcm_acces
  * \brief Extract format from a configuration space
  * \param params Configuration space
  * \param format returned format
- * \return format otherwise a negative error code if not exactly one is present
+ * \return format otherwise a negative error code if the configuration space does not contain a single value
  */
 #ifndef DOXYGEN
 int INTERNAL(snd_pcm_hw_params_get_format)(const snd_pcm_hw_params_t *params, snd_pcm_format_t *format)
@@ -3729,7 +3749,7 @@ void snd_pcm_hw_params_get_format_mask(snd_pcm_hw_params_t *params, snd_pcm_form
  * \brief Extract subformat from a configuration space
  * \param params Configuration space
  * \param subformat Returned subformat value
- * \return subformat otherwise a negative error code if not exactly one is present
+ * \return subformat otherwise a negative error code if the configuration space does not contain a single value
  */
 #ifndef DOXYGEN
 int INTERNAL(snd_pcm_hw_params_get_subformat)(const snd_pcm_hw_params_t *params, snd_pcm_subformat_t *subformat)
@@ -3823,7 +3843,7 @@ void snd_pcm_hw_params_get_subformat_mask(snd_pcm_hw_params_t *params, snd_pcm_s
  * \brief Extract channels from a configuration space
  * \param params Configuration space
  * \param val Returned channels count
- * \return 0 otherwise a negative error code if not exactly one is present
+ * \return 0 otherwise a negative error code if the configuration space does not contain a single value
  */
 #ifndef DOXYGEN
 int INTERNAL(snd_pcm_hw_params_get_channels)(const snd_pcm_hw_params_t *params, unsigned int *val)
@@ -3979,7 +3999,7 @@ int snd_pcm_hw_params_set_channels_last(snd_pcm_t *pcm, snd_pcm_hw_params_t *par
  * \param params Configuration space
  * \param val Returned approximate rate
  * \param dir Sub unit direction
- * \return 0 otherwise a negative error code if not exactly one is present
+ * \return 0 otherwise a negative error code if the configuration space does not contain a single value
  *
  * Actual exact value is <,=,> the approximate one following dir (-1, 0, 1)
  */
@@ -4176,6 +4196,7 @@ int snd_pcm_hw_params_set_rate_resample(snd_pcm_t *pcm, snd_pcm_hw_params_t *par
 		params->flags |= SND_PCM_HW_PARAMS_NORESAMPLE;
 	else
 		params->flags &= ~SND_PCM_HW_PARAMS_NORESAMPLE;
+	params->rmask = ~0;
 	return snd_pcm_hw_refine(pcm, params);
 }
 
@@ -4194,7 +4215,7 @@ int snd_pcm_hw_params_get_rate_resample(snd_pcm_t *pcm, snd_pcm_hw_params_t *par
 }
 
 /**
- * \brief Restrict a configuration space to allow the buffer accessible from outside
+ * \brief Restrict a configuration space to allow the buffer to be accessible from outside
  * \param pcm PCM handle
  * \param params Configuration space
  * \param val 0 = disable, 1 = enable (default) exporting buffer
@@ -4207,6 +4228,7 @@ int snd_pcm_hw_params_set_export_buffer(snd_pcm_t *pcm, snd_pcm_hw_params_t *par
 		params->flags |= SND_PCM_HW_PARAMS_EXPORT_BUFFER;
 	else
 		params->flags &= ~SND_PCM_HW_PARAMS_EXPORT_BUFFER;
+	params->rmask = ~0;
 	return snd_pcm_hw_refine(pcm, params);
 }
 
@@ -4256,6 +4278,7 @@ int snd_pcm_hw_params_set_period_wakeup(snd_pcm_t *pcm, snd_pcm_hw_params_t *par
 		params->flags |= SND_PCM_HW_PARAMS_NO_PERIOD_WAKEUP;
 	} else
 		params->flags &= ~SND_PCM_HW_PARAMS_NO_PERIOD_WAKEUP;
+	params->rmask = ~0;
 
 	return snd_pcm_hw_refine(pcm, params);
 }
@@ -4279,7 +4302,7 @@ int snd_pcm_hw_params_get_period_wakeup(snd_pcm_t *pcm, snd_pcm_hw_params_t *par
  * \param params Configuration space
  * \param val Returned approximate period duration in us
  * \param dir Sub unit direction
- * \return 0 otherwise a negative error code if not exactly one is present
+ * \return 0 otherwise a negative error code if the configuration space does not contain a single value
  *
  * Actual exact value is <,=,> the approximate one following dir (-1, 0, 1)
  */
@@ -4467,7 +4490,7 @@ int snd_pcm_hw_params_set_period_time_last(snd_pcm_t *pcm, snd_pcm_hw_params_t *
  * \param params Configuration space
  * \param val Returned approximate period size in frames
  * \param dir Sub unit direction
- * \return 0 otherwise a negative error code if not exactly one is present
+ * \return 0 otherwise a negative error code if the configuration space does not contain a single value
  *
  * Actual exact value is <,=,> the approximate one following dir (-1, 0, 1)
  */
@@ -4704,7 +4727,7 @@ int snd_pcm_hw_params_set_period_size_integer(snd_pcm_t *pcm, snd_pcm_hw_params_
  * \param params Configuration space
  * \param val approximate periods per buffer
  * \param dir Sub unit direction
- * \return 0 otherwise a negative error code if not exactly one is present
+ * \return 0 otherwise a negative error code if the configuration space does not contain a single value
  *
  * Actual exact value is <,=,> the approximate one following dir (-1, 0, 1)
  */
@@ -4904,7 +4927,7 @@ int snd_pcm_hw_params_set_periods_integer(snd_pcm_t *pcm, snd_pcm_hw_params_t *p
  * \param params Configuration space
  * \param val Returned buffer time in us
  * \param dir Sub unit direction
- * \return 0 otherwise a negative error code if not exactly one is present
+ * \return 0 otherwise a negative error code if the configuration space does not contain a single value
  *
  * Actual exact value is <,=,> the approximate one following dir (-1, 0, 1)
  */
@@ -5092,7 +5115,7 @@ int snd_pcm_hw_params_set_buffer_time_last(snd_pcm_t *pcm, snd_pcm_hw_params_t *
  * \brief Extract buffer size from a configuration space
  * \param params Configuration space
  * \param val Returned buffer size in frames
- * \return 0 otherwise a negative error code if not exactly one is present
+ * \return 0 otherwise a negative error code if the configuration space does not contain a single value
  */
 #ifndef DOXYGEN
 int INTERNAL(snd_pcm_hw_params_get_buffer_size)(const snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val)
@@ -5291,7 +5314,7 @@ int snd_pcm_hw_params_set_buffer_size_last(snd_pcm_t *pcm, snd_pcm_hw_params_t *
  * \param params Configuration space
  * \param val Returned approximate tick duration in us
  * \param dir Sub unit direction
- * \return 0 otherwise a negative error code if not exactly one is present
+ * \return 0 otherwise a negative error code if the configuration space does not contain a single value
  *
  * Actual exact value is <,=,> the approximate one following dir (-1, 0, 1)
  */
@@ -5481,7 +5504,7 @@ int snd_pcm_hw_params_set_tick_time_last(snd_pcm_t *pcm, snd_pcm_hw_params_t *pa
  * \brief Get the minimum transfer align value in samples
  * \param params Configuration space
  * \param val Returned minimum align value
- * \return 0 otherwise a negative error code if not exactly one is present
+ * \return 0 otherwise a negative error code if the configuration space does not contain a single value
  */
 int snd_pcm_hw_params_get_min_align(const snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val)
 {
